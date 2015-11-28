@@ -184,12 +184,7 @@ class MRVFiberDriver:
 		doms = { 1:  "NotSupported", 2: "DiagsOk" } 
 		for i in self.snmp.walk("1.3.6.1.4.1.629.200.8.1.1.38"):
 			c, s, p = self._sp(i["oid"])
-			
-			val = None
-			if i["value"] in doms:
-				val = doms[i["value"]]
-
-			self.chassis[s]["ports"][p]["domstatus"] = val
+			self.chassis[s]["ports"][p]["domstatus"] = i["value"]
 
 	def _sp(self, oid):
 		# Helper function to parse chassis, slot, port from oid
@@ -248,6 +243,7 @@ def main():
 	parser.add_argument("--community", "-c", help="SNMP Community", required=True)
 	parser.add_argument("--list-slots", "-s", help="display a list of chassis slots", action="store_true")
 	parser.add_argument("--list-ports", "-p", help="display a list of ports", action="store_true")
+	parser.add_argument("--digital-diagnostics", "-d", help="display digital diagnostics information", action="store_true")
 
 	opts = parser.parse_args()
 
@@ -276,9 +272,34 @@ def main():
 									port["optics"]["wavelength"],
 									"Channel", 
 									port["name"])
-				
+	if(opts.digital_diagnostics):
+		print "{:5} {:10} {:10} {:10} {:10} {:10} {:10}".format("Port", "DDiags", "Temp(C)", "Supply(V)", "TxPower(dBm)", "RxPower(dBm)", "Bias(mA)")
+		for slot_id in fd.get_chassis():
+			slot = fd.get_chassis()[slot_id]
+			if "ports" in slot and len(slot["ports"]) > 0:
+				for port_id in slot["ports"]:
+					port = slot["ports"][port_id]
+					optic = port["optics"]
+
+					if port["domstatus"] == 1:
+						# Don't list ports where dom is not available
+						continue
+
+					def dom_status(x):
+						return {
+							2: "Ok"
+						}.get(x, "N/A")
 
 
-
+					print "1.{}.{} {:10} {:10} {:10} {:10} {:10} {:10}".format(
+								slot_id,
+								port_id,
+								dom_status(port["domstatus"]),
+								optic["temperature"],
+								optic["voltage"],
+								optic["txpower"],
+								optic["rxpower"],
+								optic["bias"]
+								)
 if __name__ == "__main__":
 	main()

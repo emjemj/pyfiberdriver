@@ -69,6 +69,7 @@ class MRVFiberDriver:
 		serials = self.snmp.walk("1.3.6.1.4.1.629.200.7.1.1.32")
 
 		for slot in self.chassis:
+			slot = int(slot)
 			self.chassis[slot]["model"] = self._slot_value(slot, models)
 			self.chassis[slot]["portcount"] = self._slot_value(slot, portcounts)
 			self.chassis[slot]["hwrev"] = self._slot_value(slot, hwrevs)
@@ -106,7 +107,7 @@ class MRVFiberDriver:
 		lins = { 1: "NotSupported", 3: "Enabled" }
 		for i in self.snmp.walk("1.3.6.1.4.1.629.200.8.1.1.16"):
 			c, s, p = self._sp(i["oid"])
-			self.chassis[s]["ports"][p]["lin"] = lins[i["value"]]
+			self.chassis[s]["ports"][p]["lin"] = lins[int(i["value"])]
 
 		# port names (descriptions)
 		for i in self.snmp.walk("1.3.6.1.4.1.629.200.8.1.1.21"):
@@ -132,6 +133,16 @@ class MRVFiberDriver:
 				val = None
 
 			self.chassis[s]["ports"][p]["optics"]["vendor"] = val
+
+		# optics model
+		for i in self.snmp.walk(".1.3.6.1.4.1.629.200.8.1.1.42"):
+			c, s, p = self._sp(i["oid"])
+			val = str(i["value"])
+
+			if(val == "N/A"):
+				val = None
+
+			self.chassis[s]["ports"][p]["optics"]["model"] = val
 
 		# optics temperature
 		for i in self.snmp.walk("1.3.6.1.4.1.629.200.8.1.1.30"):
@@ -185,6 +196,7 @@ class MRVFiberDriver:
 		for i in self.snmp.walk("1.3.6.1.4.1.629.200.8.1.1.38"):
 			c, s, p = self._sp(i["oid"])
 			self.chassis[s]["ports"][p]["domstatus"] = i["value"]
+
 
 	def _sp(self, oid):
 		# Helper function to parse chassis, slot, port from oid
@@ -244,6 +256,7 @@ def main():
 	parser.add_argument("--list-slots", "-s", help="display a list of chassis slots", action="store_true")
 	parser.add_argument("--list-ports", "-p", help="display a list of ports", action="store_true")
 	parser.add_argument("--digital-diagnostics", "-d", help="display digital diagnostics information", action="store_true")
+	parser.add_argument("--inventory", "-i", help="display inventory", action="store_true")
 
 	opts = parser.parse_args()
 
@@ -254,6 +267,30 @@ def main():
 		for slot_id in fd.get_chassis():
 			slot = fd.get_chassis()[slot_id]
 			print "{:4} {:20} {:20} {:20}".format(slot_id, slot["model"], slot["type"], slot["serial"])
+	if(opts.inventory):
+		print "{:4} {:8} {:15} {:20} {:25} {:25}".format("Type", "Location", "Serial", "Vendor", "Model", "Revision")
+		optics = []
+		for slot_id in fd.get_chassis():
+			slot = fd.get_chassis()[slot_id]
+			if "ports" in slot and len(slot["ports"]) > 0:
+				print "{:4} 1.{:6} {:15} {:20} {:25} {:25}".format("Slot", slot_id, slot["serial"], "MRV", slot["model"], slot["hwrev"])
+				for port_id in slot["ports"]:
+					port = slot["ports"][port_id]
+					if port["optics"]["serial"] is None:
+						continue
+
+					optic = {
+						"location": "{}.{}".format(slot_id, port_id),
+						"type": port["type"],
+						"vendor": port["optics"]["vendor"],
+						"serial": port["optics"]["serial"],
+						"model": port["optics"]["model"],
+						"hwrev": "N/A"
+					}
+					optics.append(optic)
+		for optic in optics:
+				print "{:4} 1.{:6} {:15} {:20} {:25} {:25}".format(optic["type"], optic["location"], optic["serial"], optic["vendor"], optic["model"], optic["hwrev"])
+
 	if(opts.list_ports):
 		print "{:5} {:13} {:15} {:13} {:15} {:6} {:7} {:20}".format("Port", "Enabled", "Link", "Lin", "DOM", "WL(nm)", "Channel", "Name")
 		for slot_id in fd.get_chassis():

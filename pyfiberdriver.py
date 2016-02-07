@@ -42,6 +42,10 @@ class MRVFiberDriver:
 
 	def __init__(self, hostname, community):
 		self.snmp = SNMP(hostname, community)
+		self.discover()
+
+	def discover(self):
+		chassis = {}
 
 		# Figure out slots
 		for o in self.snmp.walk("1.3.6.1.4.1.629.200.7.1.1.2"):
